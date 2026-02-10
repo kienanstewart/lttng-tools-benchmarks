@@ -73,7 +73,7 @@ class SessionSetupTime(benchmark.BenchmarkBase):
     def pre_run(self):
         self.ready = False
         signal.signal(signal.SIGUSR1, self.handle_sigusr1)
-        self.sessiond = subprocess.Popen(["lttng-sessiond", "--sig-parent"])
+        self.sessiond = subprocess.Popen(["lttng-sessiond", "--sig-parent"], stdout=sys.stderr)
         while not self.ready:
             continue
         signal.signal(signal.SIGUSR1, signal.SIG_DFL)
@@ -96,4 +96,62 @@ class SessionSetupTime(benchmark.BenchmarkBase):
 
 
 class SessionStartTime(benchmark.BenchmarkBase):
-    pass
+    version = 1
+
+    def __init__(self):
+        self.children = list()
+        self.sessiond = None
+        self.session_file = pathlib.Path(__file__).parents[0] / "data/session.lttng"
+
+    def metrics():
+        return {
+            "session_start_time": {
+                "unit": "seconds",
+                "interpretation": "lower is better",
+                "description": "The time it takes to execute `lttng start` with all sessions from the input file and some number of traced applications",
+            }
+        }
+
+    def handle_sigusr1(self, signum, frame):
+        self.ready = True
+
+    def setup(self):
+        self.ready = False
+        signal.signal(signal.SIGUSR1, self.handle_sigusr1)
+        self.sessiond = subprocess.Popen(["lttng-sessiond", "--sig-parent"], stdout=sys.stderr)
+        while not self.ready:
+            continue
+        signal.signal(signal.SIGUSR1, signal.SIG_DFL)
+
+    def teardown(self):
+        if self.sessiond:
+            self.sessiond.terminate()
+            self.sessiond.wait()
+            self.sessiond = None
+
+    def pre_run(self):
+        p = subprocess.Popen(["lttng", "load", "--input-path", str(self.session_file), "--all"], stdout=sys.stderr)
+        p.wait()
+
+    def post_run(self):
+        p = subprocess.Popen(["lttng", "destroy", "--all"], stdout=sys.stderr)
+        p.wait()
+
+    def run(self, traced_applications=0):
+        self.children = list()
+        for i in range(traced_applications):
+            pass
+
+        t0 = time.monotonic()
+        p = subprocess.Popen(["lttng", "start", "--all"], stdout=sys.stderr)
+        p.wait()
+        t1 = time.monotonic()
+
+        for child in self.children:
+            child.terminate()
+            child.wait()
+        self.children = list()
+
+        return {
+            'session_start_time': t1 - t0,
+        }
