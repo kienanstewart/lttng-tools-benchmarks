@@ -34,3 +34,8 @@ class BenchmarkBase():
 
     def post_run(self):
         pass
+
+
+    def __del__(self):
+        self.post_run()
+        self.teardown()
