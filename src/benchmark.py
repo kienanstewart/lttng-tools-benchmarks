@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+
+class BenchmarkBase():
+
+    version = None
+
+    def metadata():
+        """
+        Return a dict with benchmark specific metadata
+        """
+        return dict()
+
+    def metrics():
+        """
+        Should return a dict with information about the metrics that run() returns,
+        including units, expected interpretation (e.g. lower is better), ...
+        """
+        return dict()
+
+    def setup(self):
+        pass
+
+    def teardown(self):
+        pass
+
+    def pre_run(self):
+        pass
+
+    def run(self):
+        """
+        Should return a dict of {metric: value, ...} for a single test run
+        """
+        return dict()
+
+    def post_run(self):
+        pass
