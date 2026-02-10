@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-class BenchmarkBase():
+
+class BenchmarkBase:
 
     version = None
 
@@ -40,7 +41,6 @@ class BenchmarkBase():
 
     def post_run(self):
         pass
-
 
     def __del__(self):
         self.post_run()

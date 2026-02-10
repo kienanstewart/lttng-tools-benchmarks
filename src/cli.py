@@ -14,6 +14,7 @@ import yaml
 
 import benchmark
 
+
 def discover_benchmarks(search_dirs):
     benchmarks = list()
     for finder, name, is_pkg in pkgutil.iter_modules(search_dirs):
@@ -39,45 +40,59 @@ def discover_benchmarks(search_dirs):
 
     return benchmarks
 
+
 def find_benchmark_by_name(all_benchmarks, name):
     options = list()
     for x in all_benchmarks:
-        if x['name'] == name or (name.find('.') == -1 and x['name'].rfind(".{}".format(name)) != -1):
+        if x["name"] == name or (
+            name.find(".") == -1 and x["name"].rfind(".{}".format(name)) != -1
+        ):
             options.append(x)
 
     if len(options) > 2:
-        raise Exception("Multiple ({}) matches for benchmark by name '{}'".format(len(options), name))
+        raise Exception(
+            "Multiple ({}) matches for benchmark by name '{}'".format(
+                len(options), name
+            )
+        )
 
     if len(options) == 0:
         raise Exception("No match for benchmark by name '{}'".format(name))
 
-    return options[0]['cls']
+    return options[0]["cls"]
+
 
 def run_benchmarks(config=dict(), suite=dict()):
     # Step 1: Load from search dirs and then transform into a set of benchmarks to run
-    paths = config['search_paths']
-    if 'search_paths' in suite:
-        paths.extend(suite['search_paths'])
+    paths = config["search_paths"]
+    if "search_paths" in suite:
+        paths.extend(suite["search_paths"])
 
     all_benchmarks = discover_benchmarks(paths)
-    config['search_paths'] = [str(x) for x in paths]
-    if 'runs' not in config:
-        config['runs'] = 10
+    config["search_paths"] = [str(x) for x in paths]
+    if "runs" not in config:
+        config["runs"] = 10
 
-    if 'benchmarks' in suite:
+    if "benchmarks" in suite:
         benchmarks = list()
         # Check if it exists in all_benchmarks
-        for x in suite['benchmarks']:
+        for x in suite["benchmarks"]:
             try:
                 benchmark = {
-                    'cls': find_benchmark_by_name(all_benchmarks, x['name']),
-                    'config': config | x.get('config', dict()),
-                    'parameters': x.get('parameters', list()),
+                    "cls": find_benchmark_by_name(all_benchmarks, x["name"]),
+                    "config": config | x.get("config", dict()),
+                    "parameters": x.get("parameters", list()),
                 }
-                benchmark['name'] = "{}.{}".format(benchmark['cls'].__module__, benchmark['cls'].__name__)
+                benchmark["name"] = "{}.{}".format(
+                    benchmark["cls"].__module__, benchmark["cls"].__name__
+                )
                 benchmarks.append(benchmark)
             except Exception as e:
-                logging.warning("Error finding benchmark by name '{}': {}".format(x.get('name', "<no name>"), str(e)))
+                logging.warning(
+                    "Error finding benchmark by name '{}': {}".format(
+                        x.get("name", "<no name>"), str(e)
+                    )
+                )
     else:
         benchmarks = all_benchmarks
 
@@ -87,7 +102,11 @@ def run_benchmarks(config=dict(), suite=dict()):
         "results": list(),
     }
     for benchmark in benchmarks:
-        result = run_benchmark(benchmark["cls"], config | benchmark.get('config', dict()), benchmark.get('parameters', list()))
+        result = run_benchmark(
+            benchmark["cls"],
+            config | benchmark.get("config", dict()),
+            benchmark.get("parameters", list()),
+        )
         if type(result) is list:
             # A benchmark that performed more than one parameter set may return a list
             results["results"].extend(result)
@@ -105,17 +124,23 @@ def run_benchmark(cls, config=dict(), parameter_sets=list()):
         parameter_sets = cls.default_parameter_sets()
 
     for index, parameter_set in enumerate(parameter_sets):
-        logging.info("Starting parameter set {}/{}".format(index+1, len(parameter_sets)))
+        logging.info(
+            "Starting parameter set {}/{}".format(index + 1, len(parameter_sets))
+        )
         run_results = list()
         benchmark = cls()
         benchmark.setup()
         for i in range(0, config["runs"]):
-            logging.info("Running {} iter {}/{}".format(cls, i + 1, config['runs']))
+            logging.info("Running {} iter {}/{}".format(cls, i + 1, config["runs"]))
             benchmark.pre_run()
             try:
                 run_results.append(benchmark.run(**parameter_set))
             except Exception as e:
-                logging.warning("Exception while runnning benchmark '{}' iter {}: {}".format(cls, iter, str(e)))
+                logging.warning(
+                    "Exception while runnning benchmark '{}' iter {}: {}".format(
+                        cls, iter, str(e)
+                    )
+                )
             benchmark.post_run()
 
         benchmark.teardown()
@@ -134,15 +159,17 @@ def run_benchmark(cls, config=dict(), parameter_sets=list()):
 
                 flat_result[k].append(v)
 
-        all_results.append({
-            "name": "{}.{}".format(cls.__module__, cls.__name__),
-            "version": cls.version,
-            "metrics": metrics,
-            "metadata": metadata,
-            "parameters": parameter_set,
-            "data": flat_result,
-            "config": config,
-        })
+        all_results.append(
+            {
+                "name": "{}.{}".format(cls.__module__, cls.__name__),
+                "version": cls.version,
+                "metrics": metrics,
+                "metadata": metadata,
+                "parameters": parameter_set,
+                "data": flat_result,
+                "config": config,
+            }
+        )
     return all_results
 
 
@@ -233,9 +260,7 @@ def _get_parser():
         help="The paths to search for benchmarks. May be specified multiple times",
     )
     parser.add_argument(
-        "-o", "--output",
-        type=pathlib.Path,
-        help="The output path for the results"
+        "-o", "--output", type=pathlib.Path, help="The output path for the results"
     )
 
     parser.set_defaults(
@@ -243,13 +268,15 @@ def _get_parser():
     )
     return parser
 
+
 def _load_file(path):
     try:
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             return yaml.safe_load(f.read())
+
 
 if __name__ == "__main__":
     logging.basicConfig()
@@ -265,10 +292,10 @@ if __name__ == "__main__":
     if args.benchmarks:
         suite = _load_file(args.benchmarks)
 
-    config['search_paths'] = args.search_path
+    config["search_paths"] = args.search_path
     results = run_benchmarks(config, suite)
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, "w") as f:
             json.dump(results, f)
     else:
         print(json.dumps(results))
