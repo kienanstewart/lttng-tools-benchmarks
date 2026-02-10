@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import os
 import pathlib
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, pathlib.Path(__file__).parents[1] / "src")
@@ -73,7 +75,9 @@ class SessionSetupTime(benchmark.BenchmarkBase):
     def pre_run(self):
         self.ready = False
         signal.signal(signal.SIGUSR1, self.handle_sigusr1)
-        self.sessiond = subprocess.Popen(["lttng-sessiond", "--sig-parent"], stdout=sys.stderr)
+        self.sessiond = subprocess.Popen(
+            ["lttng-sessiond", "--sig-parent"], stdout=sys.stderr
+        )
         while not self.ready:
             continue
         signal.signal(signal.SIGUSR1, signal.SIG_DFL)
@@ -84,14 +88,25 @@ class SessionSetupTime(benchmark.BenchmarkBase):
             self.sessiond.wait()
             self.sessiond = None
 
-    def run(self, session_file=pathlib.Path(__file__).parents[0] / "data/session.lttng"):
+    def default_parameter_sets():
+        return [
+            {
+                "session_file": str(
+                    pathlib.Path(__file__).parents[0] / "data/session.lttng"
+                ),
+            }
+        ]
+
+    def run(self, session_file):
         t0 = time.monotonic()
         p = subprocess.Popen(
-            ["lttng", "load", "--input-path", str(session_file), "--all"], stdout=sys.stderr)
+            ["lttng", "load", "--input-path", str(session_file), "--all"],
+            stdout=sys.stderr,
+        )
         p.wait()
         t1 = time.monotonic()
         return {
-            'session_load_time': t1 - t0,
+            "session_load_time": t1 - t0,
         }
 
 
@@ -118,7 +133,9 @@ class SessionStartTime(benchmark.BenchmarkBase):
     def setup(self):
         self.ready = False
         signal.signal(signal.SIGUSR1, self.handle_sigusr1)
-        self.sessiond = subprocess.Popen(["lttng-sessiond", "--sig-parent"], stdout=sys.stderr)
+        self.sessiond = subprocess.Popen(
+            ["lttng-sessiond", "--sig-parent"], stdout=sys.stderr
+        )
         while not self.ready:
             continue
         signal.signal(signal.SIGUSR1, signal.SIG_DFL)
@@ -130,28 +147,53 @@ class SessionStartTime(benchmark.BenchmarkBase):
             self.sessiond = None
 
     def pre_run(self):
-        p = subprocess.Popen(["lttng", "load", "--input-path", str(self.session_file), "--all"], stdout=sys.stderr)
+        p = subprocess.Popen(
+            ["lttng", "load", "--input-path", str(self.session_file), "--all"],
+            stdout=sys.stderr,
+        )
         p.wait()
 
     def post_run(self):
         p = subprocess.Popen(["lttng", "destroy", "--all"], stdout=sys.stderr)
         p.wait()
 
+    def default_parameter_sets():
+        return [
+            {"traced_applications": 0},
+            {"traced_applications": 10},
+            {"traced_applications": 100},
+        ]
+
     def run(self, traced_applications=0):
         self.children = list()
+        wait_before_first_event_file = tempfile.NamedTemporaryFile()
+        os.unlink(wait_before_first_event_file.name)
+
         for i in range(traced_applications):
-            pass
+            self.children.append(
+                subprocess.Popen(
+                    [
+                        "..//lttng-tools/tests/utils/testapp/gen-ust-events",
+                        "-b",
+                        wait_before_first_event_file.name,
+                    ],
+                    stdout=sys.stderr,
+                    env=os.environ.copy() | {"LTTNG_UST_REGISTER_TIMEOUT": "-1"},
+                )
+            )
 
         t0 = time.monotonic()
         p = subprocess.Popen(["lttng", "start", "--all"], stdout=sys.stderr)
         p.wait()
         t1 = time.monotonic()
 
+        with open(wait_before_first_event_file.name, "w") as f:
+            f.write("\n")
+
         for child in self.children:
-            child.terminate()
             child.wait()
 
         self.children = list()
         return {
-            'session_start_time': t1 - t0,
+            "session_start_time": t1 - t0,
         }
