@@ -102,7 +102,7 @@ def run_benchmark(cls, config=dict(), parameter_sets=list()):
     metadata = cls.metadata()
     all_results = list()
     if len(parameter_sets) == 0:
-        parameter_sets.append(dict())
+        parameter_sets = cls.default_parameter_sets()
 
     for parameter_set in parameter_sets:
         run_results = list()

@@ -4,6 +4,12 @@ class BenchmarkBase():
 
     version = None
 
+    def default_parameter_sets():
+        """
+        Return a list of dicts with parameters for the run()
+        """
+        return [dict()]
+
     def metadata():
         """
         Return a dict with benchmark specific metadata
